@@ -607,32 +607,45 @@ knitr::include_graphics("https://miro.medium.com/max/1400/1*oNt9G9UpVhtyFLDBwEMf
 
 ```
 
-k-means does not normalize our data for us like PCA did, so we will need to do that before running the model.  
+k-means does not normalize our data for us like PCA did, so we will need to do that before running the model. Variables magnitude matter (larger variables, higher impact). 
+
+across(columns where to apply, function to apply)
 
 ```{r}
 # normalizing the data
-weather_norm  
+weather_norm<-weather_n %>%
+  mutate(across(everything(),
+                ~scale(.x))
+         )
 
 weather_norm
 ```
 
 Also, we need to define the number of clusters we want.  
 Any thoughts?  
-Let's try 2.  
-
+Let's try 2.  k (pull 6 random observations and set as centers)
+nstart? Randomness,nstart run k means 10 times to avoid impact of choosing the same values randomly. 
 ```{r kmeans model }
-mod_km 
+mod_km <- kmeans(weather_norm,
+                 centers = 6,
+                 nstart = 10)
 
 mod_km
 ```
+(between_SS / total_SS =  58.5 %) --> How much variability we are explaining with those clusters. 
 
-Since the choice of k can be subjective, we will need to find an objective way to select the value of k that most properly represents our dataset.  
+Since the choice of k can be subjective, we will need to find an objective way to select the value of k that most properly represents our dataset. 
+
+The elbow method --> Choose number of K where you see an elbow. In this case, between 3 - 5. Minimum number of clusters that explain most of the information. 
 
 ```{r choosing k - total error}
 # Total error x k
-
+fviz_nbclust(weather_norm,
+             method = "wss",
+             k.max = 10,
+             FUNcluster = kmeans)
 ```
-
+Silhoutte widht --> Average width heights as possible. Observations in that cluster have a larger level of similarity within the cluster.
 
 ```{r choosing k - silhouette}
 # Silhouette width
@@ -642,6 +655,7 @@ fviz_nbclust(weather_norm,
              FUNcluster = kmeans) 
 
 ```
+Based on both cluster methods 4 is one of the recommendations. 
 
 total error: k=3-4  
 silhouette: k=4  
@@ -649,14 +663,21 @@ silhouette: k=4
 Let's go with 4 clusters.  
 
 ```{r mod_km4 }
-mod_km4 
+mod_km4 <- kmeans(weather_norm,
+                  centers = 4,
+                  nstart = 10
+                  )
 
 mod_km4
 ```
 
 How many observations per cluster?
+Tally() shortcut for sample size/observations count
 ```{r}
-
+weather %>%
+  mutate(cluster = mod_km4$cluster) %>%
+  group_by(cluster) %>%
+  tally()
 ```
 
 Now how can we visually inspect the resutls of k-means?  
@@ -665,6 +686,8 @@ We can either
 - add the cluster column to original dataset and explore the distribution of each variable against cluster id, OR  
 
 - use a function that summarises all the original variables into PCs and plots the cluster ids.  
+
+Which variables can differentiate clusters. 
 
 ```{r cluster x variable boxplots}
 weather %>%
@@ -691,7 +714,8 @@ We could actually run ANOVA models for each original variable of the form
 and extract cluster mean and pairwise comparison to understand what variables had significant differences among clusters.  
 
 ```{r kmeans PCA plot}
-
+fviz_cluster(mod_km4,
+             data = weather_norm)
 ```
   
 Notice how, behind the scenes, the fviz_cluster function ran a PCA and is showing us a plot with PCs 1 and 2 on the axis (same result as we obtained on the PCA analysis).   
